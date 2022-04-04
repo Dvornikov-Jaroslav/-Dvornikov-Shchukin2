@@ -10,7 +10,7 @@ def get_text(url):
     rs = requests.get(url)
     root = BeautifulSoup(rs.content, 'html.parser')
 
-    article = root.find_all('span', {'class': 'vl'})
+    article = root.find_all(('span', {'class': 'vl'}) or 'span', {'class': 'p'})
     for elem in article:
         text.append(elem.text)
     return text
@@ -24,16 +24,20 @@ def get_paragraphs(url):
     article = root.find_all('div', {'class': 'd2'})
     for p in article:
         text.append(p.find('a').get('href'))
+
+    # Убираем повторы
+    text = list(dict.fromkeys(text))
     return text
 
 
-url = 'https://ilibrary.ru/text/436/index.html#toc'
+url = 'https://ilibrary.ru/text/12/index.html#toc'
 url = url[:url.find('/index')]
-# https://ilibrary.ru/text/436
+# https://ilibrary.ru/text/12
 pages = get_paragraphs(url)
 for page in pages:
     page = 'https://ilibrary.ru' + page
     text = get_text(page)
     for elem in text:
         all_text.append(" ".join(elem.split()))
-print(all_text)
+for elem in all_text:
+    print(elem)
