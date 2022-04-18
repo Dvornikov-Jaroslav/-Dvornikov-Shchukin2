@@ -91,10 +91,19 @@ class Bot:
         # url оглавления произведения
         url = game.composition_url.split('p.')[0] + 'index.html'
         # подключаемся к оглавлению произведения, чтобы определить дату его написания
-        rs = requests.get(self.url)
+        rs = requests.get(url)
         root = BeautifulSoup(rs.content, 'html.parser')
 
-        date = root.find('div', {'class': 'tabout'}).text.split(' ')[2].split('\xa0')[0]
+        date = root.find('div', {'class': 'tabout'})
+        if date:
+            date = date.text.split(' ')[2].split('\xa0')[0]
+            # Проверка на правильность определения даты
+            try:
+                date = int(date)
+            except BaseException:
+                date = '***'
+        else:
+            date = '***'
 
         text = self.get_all_text(url)
         # Проверка на ошибку получения данных с сайта
@@ -104,17 +113,31 @@ class Bot:
             # url оглавления произведения
             url = game.composition_url.split('p.')[0] + 'index.html'
             # подключаемся к оглавлению произведения, чтобы определить дату его написания
-            rs = requests.get(self.url)
+            rs = requests.get(url)
             root = BeautifulSoup(rs.content, 'html.parser')
 
             date = root.find('div', {'class': 'tabout'}).text.split(' ')[2].split('\xa0')[0]
 
             text = self.get_all_text(url)
 
-        # Удаляем пустые списки
-        for elem in text:
-            if not elem:
-                text.remove(elem)
+        # Удаляем ненужные элементы
+        correct_text = list()
+        for i in range(len(text)):
+            correct_text.append(['', []])
+            if text[i] != ['', []]:
+                correct_text[i][0] = text[i][0]
+                for j in range(len(text[i][1])):
+                    if text[i][1][j] != '' and text[i][1][j] != '\n':
+                        correct_text[i][1].append(text[i][1][j])
+        # Удаляем рекламную информацию
+        if len(correct_text) != 1:
+            correct_text.remove(correct_text[len(correct_text) - 1])
+        l = len(correct_text) - 1
+        correct_text[l][1].remove(correct_text[l][1][len(correct_text[l][1]) - 1])
+        correct_text[l][1].remove(correct_text[l][1][len(correct_text[l][1]) - 1])
+        correct_text[l][1].remove(correct_text[l][1][len(correct_text[l][1]) - 1])
+        correct_text[l][1].remove(correct_text[l][1][len(correct_text[l][1]) - 1])
+
         number_of_chapters = len(text)
         if number_of_chapters != 1:
             number_of_chapters -= 1
@@ -124,27 +147,30 @@ class Bot:
         word = word.make_agree_with_number(number_of_chapters).word
         # Получаем случайный отрывок из произведения
         print(game.composition_name)
-        print(text)
-        print(len(text))
-        chapter = random.randint(0, len(text) - 1)
+        print(correct_text)
+        print(len(correct_text))
+        chapter = random.randint(0, len(correct_text) - 1)
         print(f'chapter {chapter}')
-        p_ch = random.randint(0, len(text[chapter][1]) - 1)
+        p_ch = random.randint(0, len(correct_text[chapter][1]) - 1)
         p = text[chapter][1][p_ch]
-        # Захватываем следущий абзац, если в изначально выбранном меньше 300 символов
-        while len(p) < 300:
+        while len(p) == 0:
+            p_ch = random.randint(0, len(correct_text[chapter][1]) - 1)
+            p = text[chapter][1][p_ch]
+        # Захватываем следущий абзац, если в изначально выбранном меньше 150 символов
+        while len(p) < 150 or (p[len(p) - 1] != '.' and p[len(p) - 1] != '!' and p[len(p) - 1] != '?'):
             # если выбранный абзац является последним в выбранной главе, то сбрасываем
             # выделенный абзац и выбираем передыдущий
-            if len(text[chapter][1]) - 1 != p_ch:
+            if len(correct_text[chapter][1]) - 1 != p_ch:
                 p_ch += 1
                 print('+', p_ch)
 
             else:
                 print('-')
-                p_ch = random.randint(0, len(text[chapter][1]) - 1)
+                p_ch = random.randint(0, len(correct_text[chapter][1]) - 1)
                 p = ''
 
+            p = (p + '\n' + correct_text[chapter][1][p_ch]).split('\n')
             print(p)
-            p = (p + '\n' + text[chapter][1][p_ch]).split('\n')
             par = list()
             for elem in p:
                 if elem != '':
@@ -154,16 +180,25 @@ class Bot:
                 print('email error', p.split('Email:'))
                 p = ''.join(p.split('Email:')[0])
 
-        if len(p) > 400:
-            p = p[:400] + '...'
+        p1 = list()
+        if len(p) > 300:
+            print(list(p[300:]))
+            for i in range(len(list(p[300:]))):
+                if list(p[300:])[i] != '.' and list(p[300:])[i] and '!' and list(p[300:])[i] != '?':
+                    p1.append(list(p[300:])[i])
+                    print('if')
+                else:
+                    print('else')
+                    p1.append(list(p[300:])[i])
+                    break
+        p = p[:300] + ''.join(p1)
 
         print(f'Это произведенеие написано в {date} году, '
               f'автор: {game.author_name}, в нем {number_of_chapters} {word}, отрывок из произведения:')
         print(p)
         print(f'Название произведения: {game.composition_name}')
-        # Убрать из метода get_text последний элемент предпоследнего списка в списке и последней элемент в списке
-        # т.е. убрать почту и доп информацию
 
+        game.response_accept(input())
 
 
 class MiniGame:
@@ -198,16 +233,37 @@ class MiniGame:
         self.composition_url = composition[0]
         self.composition_name = composition[1]
 
-
-
-
-
+    def response_accept(self, response):
+        correct_answer = list(self.composition_name)
+        for b in correct_answer:
+            if b in quote_marks:
+                correct_answer.remove(b)
+        correct_answer = ''.join(correct_answer)
+        if response == correct_answer:
+            print(f"Да вы знаток русской литературы! Это и вправду {correct_answer}!")
+        else:
+            response = response.split(' ')
+            correct_answer = correct_answer.split(' ')
+            count_of_correct_words = len(correct_answer)
+            count_of_correct_response_words = 0
+            for elem in response:
+                for el in correct_answer:
+                    if elem == el:
+                        count_of_correct_response_words += 1
+            correct_answer = ' '.join(correct_answer)
+            if count_of_correct_response_words != 0:
+                if count_of_correct_response_words / count_of_correct_words > 0.6:
+                    print(f'Вы почти угадали, это — {correct_answer}')
+                else:
+                    print(f'Ну вы хоть попытались... Это — {correct_answer}')
+            else:
+                print(f"Вы не угадали, это {correct_answer}")
 
 
 bot = Bot()
 bot.createMiniGame()
 
-# В ответе очень много текста(целый абзац для каждого ответа), т.е нужно обрезать строки
+# В ответе(quotes) очень много текста(целый абзац для каждого ответа), т.е нужно обрезать строки
 # (думаю, что нуужно сделать алгоритм, отслеживающий конец кавычки/или точку(для тире или двоеточия)
 # и обрезающий ненужное)
 
